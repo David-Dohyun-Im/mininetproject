@@ -43,22 +43,21 @@ def configure_path1():
     for sw in ['s1', 's2', 's3', 's4']:
         os.system(f'ovs-ofctl del-flows {sw}')
     
-    # Common ARP handling for all switches
-    for sw in ['s1', 's2', 's3', 's4']:
-        os.system(f'ovs-ofctl add-flow {sw} "priority=200,dl_type=0x0806,actions=flood"')
-        os.system(f'ovs-ofctl add-flow {sw} "priority=0,actions=drop"')
+    # Add ARP handling for all switches
+    for sw in ['s1', 's2', 's4']:
+        os.system(f'ovs-ofctl add-flow {sw} "dl_type=0x0806,actions=flood"')
     
-    # s1: Forward to s2 (port 2) for path 1
-    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # h1 to s2
-    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s2 back to h1
+    # s1: Simple port-based forwarding
+    os.system('ovs-ofctl add-flow s1 "in_port=1,actions=output:2"')  # h1 to s2
+    os.system('ovs-ofctl add-flow s1 "in_port=2,actions=output:1"')  # s2 back to h1
     
     # s2: Forward between s1 and s4
-    os.system('ovs-ofctl add-flow s2 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # s1 to s4
-    os.system('ovs-ofctl add-flow s2 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s4 back to s1
+    os.system('ovs-ofctl add-flow s2 "in_port=1,actions=output:2"')  # s1 to s4
+    os.system('ovs-ofctl add-flow s2 "in_port=2,actions=output:1"')  # s4 back to s1
     
     # s4: Forward from s2 to h2, and back
-    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')  # s2 to h2
-    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1"')  # h2 back to s2
+    os.system('ovs-ofctl add-flow s4 "in_port=1,actions=output:3"')  # s2 to h2
+    os.system('ovs-ofctl add-flow s4 "in_port=3,actions=output:1"')  # h2 back to s2
     
     print("✓ Path 1 configured: h1 → s1 → s2 → s4 → h2")
 
@@ -70,22 +69,21 @@ def configure_path2():
     for sw in ['s1', 's2', 's3', 's4']:
         os.system(f'ovs-ofctl del-flows {sw}')
     
-    # Common ARP handling for all switches
-    for sw in ['s1', 's2', 's3', 's4']:
-        os.system(f'ovs-ofctl add-flow {sw} "priority=200,dl_type=0x0806,actions=flood"')
-        os.system(f'ovs-ofctl add-flow {sw} "priority=0,actions=drop"')
+    # Add ARP handling for all switches
+    for sw in ['s1', 's3', 's4']:
+        os.system(f'ovs-ofctl add-flow {sw} "dl_type=0x0806,actions=flood"')
     
-    # s1: Forward to s3 (port 3) for path 2
-    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')  # h1 to s3
-    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s3 back to h1
+    # s1: Simple port-based forwarding to s3
+    os.system('ovs-ofctl add-flow s1 "in_port=1,actions=output:3"')  # h1 to s3
+    os.system('ovs-ofctl add-flow s1 "in_port=3,actions=output:1"')  # s3 back to h1
     
     # s3: Forward between s1 and s4
-    os.system('ovs-ofctl add-flow s3 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # s1 to s4
-    os.system('ovs-ofctl add-flow s3 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s4 back to s1
+    os.system('ovs-ofctl add-flow s3 "in_port=1,actions=output:2"')  # s1 to s4
+    os.system('ovs-ofctl add-flow s3 "in_port=2,actions=output:1"')  # s4 back to s1
     
     # s4: Forward from s3 to h2, and back
-    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=2,dl_dst=00:00:00:00:00:02,actions=output:3"')  # s3 to h2
-    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:2"')  # h2 back to s3
+    os.system('ovs-ofctl add-flow s4 "in_port=2,actions=output:3"')  # s3 to h2
+    os.system('ovs-ofctl add-flow s4 "in_port=3,actions=output:2"')  # h2 back to s3
     
     print("✓ Path 2 configured: h1 → s1 → s3 → s4 → h2")
 
@@ -286,8 +284,8 @@ def setup():
     # Wait for network to be ready
     time.sleep(3)
     
-    # Configure flow rules - default to Path 1
-    configure_flow_rules(net, path_choice=1)
+    # Configure flow rules - default to Path 2 (working path)
+    configure_flow_rules(net, path_choice=2)
     
     print("\nNetwork topology:")
     print("h1 (10.0.0.1) -- s1 -- s2 -- s4 -- h2 (10.0.0.2)")
