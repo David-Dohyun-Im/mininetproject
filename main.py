@@ -14,9 +14,9 @@ import sys
 
 class CustomTopology(Topo):
     def build(self):
-        # Add hosts
-        h1 = self.addHost('h1', ip='10.0.0.1/24')
-        h2 = self.addHost('h2', ip='10.0.0.2/24')
+        # Add hosts with specific MAC addresses
+        h1 = self.addHost('h1', ip='10.0.0.1/24', mac='00:00:00:00:00:01')
+        h2 = self.addHost('h2', ip='10.0.0.2/24', mac='00:00:00:00:00:02')
         
         # Add switches
         s1 = self.addSwitch('s1')
@@ -35,42 +35,75 @@ class CustomTopology(Topo):
         self.addLink(s1, s3)
         self.addLink(s3, s4)
 
-def configure_flow_rules(net):
-    """Configure flow rules for all switches to enable both paths"""
+def configure_path1():
+    """Configure Path 1: h1 → s1 → s2 → s4 → h2"""
+    print("Configuring Path 1: h1 → s1 → s2 → s4 → h2")
     
-    print("\n=== Configuring OpenFlow Rules ===")
+    # Clear all flows first
+    for sw in ['s1', 's2', 's3', 's4']:
+        os.system(f'ovs-ofctl del-flows {sw}')
     
-    # Clear existing flow tables
-    for switch in ['s1', 's2', 's3', 's4']:
-        os.system(f'ovs-ofctl del-flows {switch}')
-        print(f"Cleared flow table for {switch}")
+    # Common ARP handling for all switches
+    for sw in ['s1', 's2', 's3', 's4']:
+        os.system(f'ovs-ofctl add-flow {sw} "priority=200,dl_type=0x0806,actions=flood"')
+        os.system(f'ovs-ofctl add-flow {sw} "priority=0,actions=drop"')
     
-    # Switch s1 flow rules
-    os.system('ovs-ofctl add-flow s1 "in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')
-    os.system('ovs-ofctl add-flow s1 "in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')
-    os.system('ovs-ofctl add-flow s1 "in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')
-    os.system('ovs-ofctl add-flow s1 "in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1"')
-    print("Configured flow rules for s1")
+    # s1: Forward to s2 (port 2) for path 1
+    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # h1 to s2
+    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s2 back to h1
     
-    # Switch s2 flow rules (path 1: s1-s2-s4)
-    os.system('ovs-ofctl add-flow s2 "in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')
-    os.system('ovs-ofctl add-flow s2 "in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')
-    print("Configured flow rules for s2")
+    # s2: Forward between s1 and s4
+    os.system('ovs-ofctl add-flow s2 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # s1 to s4
+    os.system('ovs-ofctl add-flow s2 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s4 back to s1
     
-    # Switch s3 flow rules (path 2: s1-s3-s4)
-    os.system('ovs-ofctl add-flow s3 "in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')
-    os.system('ovs-ofctl add-flow s3 "in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')
-    print("Configured flow rules for s3")
+    # s4: Forward from s2 to h2, and back
+    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')  # s2 to h2
+    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1"')  # h2 back to s2
     
-    # Switch s4 flow rules
-    os.system('ovs-ofctl add-flow s4 "in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')
-    os.system('ovs-ofctl add-flow s4 "in_port=2,dl_dst=00:00:00:00:00:02,actions=output:3"')
-    os.system('ovs-ofctl add-flow s4 "in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1,output:2"')
-    print("Configured flow rules for s4")
+    print("✓ Path 1 configured: h1 → s1 → s2 → s4 → h2")
+
+def configure_path2():
+    """Configure Path 2: h1 → s1 → s3 → s4 → h2"""
+    print("Configuring Path 2: h1 → s1 → s3 → s4 → h2")
     
-    # Add ARP handling rules for all switches
-    for switch in ['s1', 's2', 's3', 's4']:
-        os.system(f'ovs-ofctl add-flow {switch} "dl_type=0x0806,actions=flood"')
+    # Clear all flows first
+    for sw in ['s1', 's2', 's3', 's4']:
+        os.system(f'ovs-ofctl del-flows {sw}')
+    
+    # Common ARP handling for all switches
+    for sw in ['s1', 's2', 's3', 's4']:
+        os.system(f'ovs-ofctl add-flow {sw} "priority=200,dl_type=0x0806,actions=flood"')
+        os.system(f'ovs-ofctl add-flow {sw} "priority=0,actions=drop"')
+    
+    # s1: Forward to s3 (port 3) for path 2
+    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:3"')  # h1 to s3
+    os.system('ovs-ofctl add-flow s1 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s3 back to h1
+    
+    # s3: Forward between s1 and s4
+    os.system('ovs-ofctl add-flow s3 "priority=100,in_port=1,dl_dst=00:00:00:00:00:02,actions=output:2"')  # s1 to s4
+    os.system('ovs-ofctl add-flow s3 "priority=100,in_port=2,dl_dst=00:00:00:00:00:01,actions=output:1"')  # s4 back to s1
+    
+    # s4: Forward from s3 to h2, and back
+    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=2,dl_dst=00:00:00:00:00:02,actions=output:3"')  # s3 to h2
+    os.system('ovs-ofctl add-flow s4 "priority=100,in_port=3,dl_dst=00:00:00:00:00:01,actions=output:2"')  # h2 back to s3
+    
+    print("✓ Path 2 configured: h1 → s1 → s3 → s4 → h2")
+
+def configure_flow_rules(net, path_choice=1):
+    """Configure flow rules for the specified path"""
+    
+    print(f"\n=== Configuring OpenFlow Rules for Path {path_choice} ===")
+    
+    if path_choice == 1:
+        configure_path1()
+    elif path_choice == 2:
+        configure_path2()
+    else:
+        print("Invalid path choice, defaulting to Path 1")
+        configure_path1()
+    
+    # Wait for flow rules to be properly installed
+    time.sleep(2)
     
     print("Flow rules configured successfully!")
 
@@ -166,7 +199,7 @@ def run_automated_test(net):
     
     print("\n=== Starting Server on h2 ===")
     # Start server on h2 in background
-    server_cmd = 'cd /home/dohyun11111m/mininetproject && python server.py'
+    server_cmd = 'cd /home/dohyun11111m/mininetproject && python3 server.py'
     server_process = h2.popen(server_cmd, shell=True)
     
     # Give server time to start
@@ -174,16 +207,30 @@ def run_automated_test(net):
     time.sleep(3)
     
     print("\n=== Testing Connectivity ===")
+    
+    # Check actual MAC addresses assigned
+    h1_mac = h1.cmd('cat /sys/class/net/h1-eth0/address').strip()
+    h2_mac = h2.cmd('cat /sys/class/net/h2-eth0/address').strip()
+    print(f"h1 MAC: {h1_mac}")
+    print(f"h2 MAC: {h2_mac}")
+    
     # Test basic connectivity
     result = net.ping([h1, h2], timeout='1')
     if result > 0:
         print("WARNING: Basic ping test failed")
+        # Try manual ping for debugging
+        manual_ping = h1.cmd('ping -c 2 10.0.0.2')
+        print(f"Manual ping result: {manual_ping}")
+        
+        # Check ARP table
+        arp_table = h1.cmd('arp -a')
+        print(f"h1 ARP table: {arp_table}")
     else:
         print("✓ Basic connectivity confirmed")
     
     print("\n=== Starting Client on h1 ===")
     # Start client on h1
-    client_cmd = 'cd /home/dohyun11111m/mininetproject && python client.py'
+    client_cmd = 'cd /home/dohyun11111m/mininetproject && python3 client.py'
     print(f"Executing: {client_cmd}")
     
     try:
@@ -236,8 +283,11 @@ def setup():
     print("\n=== Starting Mininet Network ===")
     net.start()
     
-    # Configure flow rules
-    configure_flow_rules(net)
+    # Wait for network to be ready
+    time.sleep(3)
+    
+    # Configure flow rules - default to Path 1
+    configure_flow_rules(net, path_choice=1)
     
     print("\nNetwork topology:")
     print("h1 (10.0.0.1) -- s1 -- s2 -- s4 -- h2 (10.0.0.2)")
@@ -265,16 +315,39 @@ def setup():
         print("2. Press Ctrl+C to exit")
         
         try:
-            input()
-            print("\nStarting Mininet CLI...")
-            print("Available commands:")
-            print("  pingall        - Test connectivity")
-            print("  dump           - Show network configuration") 
-            print("  h1 python client.py  - Run client manually")
-            print("  h2 python server.py  - Run server manually")
-            CLI(net)
-        except KeyboardInterrupt:
-            print("\nSkipping CLI, shutting down...")
+            # Skip CLI interaction when run non-interactively
+            if sys.stdin.isatty():
+                print("\nAdditional Options:")
+                print("1. Test Path 2 (h1 → s1 → s3 → s4 → h2)")
+                print("2. Start Mininet CLI for manual testing")
+                print("3. Exit")
+                
+                while True:
+                    choice = input("\nEnter choice (1/2/3): ").strip()
+                    if choice == '1':
+                        print("\n" + "="*50)
+                        print("TESTING PATH 2")
+                        print("="*50)
+                        configure_flow_rules(net, path_choice=2)
+                        test_success = run_automated_test(net)
+                        break
+                    elif choice == '2':
+                        print("\nStarting Mininet CLI...")
+                        print("Available commands:")
+                        print("  pingall        - Test connectivity")
+                        print("  dump           - Show network configuration") 
+                        print("  h1 python3 client.py  - Run client manually")
+                        print("  h2 python3 server.py  - Run server manually")
+                        CLI(net)
+                        break
+                    elif choice == '3':
+                        break
+                    else:
+                        print("Invalid choice. Please enter 1, 2, or 3.")
+            else:
+                print("Non-interactive mode - skipping additional options")
+        except (KeyboardInterrupt, EOFError):
+            print("\nSkipping additional options, shutting down...")
         
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
