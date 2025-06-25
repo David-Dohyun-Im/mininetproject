@@ -1,0 +1,2 @@
+This is a file transfer test using Mininet and TCP sockets.
+The network consists of 2 hosts and 4 switches.
